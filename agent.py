@@ -1,5 +1,6 @@
 # agent.py
 import random
+import math
 from collections import deque
 import heapq
 
@@ -36,11 +37,20 @@ class ModelBasedAgent:
         return action
 
 
-# ========== PRACTICAL 03: Search Agent (Goal-Based Planning) ==========
+# ========== PRACTICAL 03 + 04: Search Agent (Goal-Based Planning with A*) ==========
 class SearchAgent:
     def __init__(self, algo='BFS'):
-        self.active_algo = algo   # 'BFS', 'DFS', or 'UCS'
+        self.active_algo = algo   # 'BFS', 'DFS', 'UCS', or 'AStar'
         self.plan = []            # Sequence of absolute actions: ['Up', 'Down', 'Left', 'Right']
+
+    # ========== PRACTICAL 04: Heuristic Functions ==========
+    def manhattan_distance(self, pos, goal):
+        """Calculates Manhattan distance: |x1-x2| + |y1-y2|"""
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+
+    def euclidean_distance(self, pos, goal):
+        """Calculates Euclidean distance: sqrt((x1-x2)^2 + (y1-y2)^2)"""
+        return math.sqrt((pos[0] - goal[0]) ** 2 + (pos[1] - goal[1]) ** 2)
 
     def _get_neighbors(self, pos, grid_size, walls):
         """Returns valid neighboring absolute coordinates."""
@@ -98,7 +108,7 @@ class SearchAgent:
                 if neighbor not in came_from:
                     came_from[neighbor] = current
                     frontier.append(neighbor)
-        return None  # No path found
+        return None
 
     # ---------- DFS (LIFO Stack) ----------
     def dfs_search(self, start, goal, walls, grid_size):
@@ -120,7 +130,6 @@ class SearchAgent:
     def ucs_search(self, start, goal, walls, grid_size):
         if start == goal:
             return []
-        # Priority queue stores (cost, node)
         heap = []
         heapq.heappush(heap, (0, start))
         came_from = {start: None}
@@ -130,12 +139,70 @@ class SearchAgent:
             if current == goal:
                 return self._reconstruct_path(came_from, start, goal)
             for neighbor in self._get_neighbors(current, grid_size, walls):
-                new_cost = current_cost + 1  # Each move costs 1
+                new_cost = current_cost + 1
                 if neighbor not in cost_so_far or new_cost < cost_so_far[neighbor]:
                     cost_so_far[neighbor] = new_cost
                     came_from[neighbor] = current
                     heapq.heappush(heap, (new_cost, neighbor))
         return None
+
+    # ========== PRACTICAL 04: A* Search ==========
+    def astar_search(self, start, goal, walls, grid_size, heuristic_type='manhattan'):
+        """A* search using Manhattan or Euclidean heuristic."""
+        if start == goal:
+            return []
+
+        # Choose heuristic function
+        if heuristic_type == 'euclidean':
+            h_func = self.euclidean_distance
+        else:  # default to Manhattan
+            h_func = self.manhattan_distance
+
+        # Priority queue: (f_cost, g_cost, current_pos, path_actions)
+        # For the start node: g=0, h=heuristic(start, goal)
+        start_h = h_func(start, goal)
+        heap = []
+        heapq.heappush(heap, (start_h, 0, start, []))  # (f, g, pos, path)
+
+        came_from = {start: None}
+        cost_so_far = {start: 0}
+
+        while heap:
+            f_cost, g_cost, current, path = heapq.heappop(heap)
+
+            # If we reached the goal, return the path
+            if current == goal:
+                return path
+
+            # Skip if we already found a better path to this node
+            if g_cost > cost_so_far.get(current, float('inf')):
+                continue
+
+            # Expand neighbors
+            for neighbor in self._get_neighbors(current, grid_size, walls):
+                new_g = g_cost + 1
+                # If this is a better path to neighbor
+                if neighbor not in cost_so_far or new_g < cost_so_far[neighbor]:
+                    cost_so_far[neighbor] = new_g
+                    came_from[neighbor] = current
+                    # Calculate heuristic for neighbor
+                    h = h_func(neighbor, goal)
+                    f = new_g + h
+                    # Build the new path (actions to reach neighbor)
+                    dx = neighbor[0] - current[0]
+                    dy = neighbor[1] - current[1]
+                    if dx == 1:
+                        action = 'Right'
+                    elif dx == -1:
+                        action = 'Left'
+                    elif dy == 1:
+                        action = 'Up'
+                    elif dy == -1:
+                        action = 'Down'
+                    new_path = path + [action]
+                    heapq.heappush(heap, (f, new_g, neighbor, new_path))
+
+        return None  # No path found
 
     # ---------- Sense and Act (Main Loop for Search Agent) ----------
     def sense_and_act(self, percept: dict) -> str:
@@ -147,7 +214,7 @@ class SearchAgent:
             foods = percept['all_food']
 
             if not foods:
-                return 'MoveForward'  # No food left, just idle
+                return 'MoveForward'
 
             # Find closest food using Manhattan distance
             closest_food = min(foods, key=lambda f: abs(f[0] - agent_pos[0]) + abs(f[1] - agent_pos[1]))
@@ -159,11 +226,14 @@ class SearchAgent:
                 plan = self.dfs_search(agent_pos, closest_food, walls, grid_size)
             elif self.active_algo == 'UCS':
                 plan = self.ucs_search(agent_pos, closest_food, walls, grid_size)
+            # ========== PRACTICAL 04: A* integration ==========
+            elif self.active_algo == 'AStar':
+                plan = self.astar_search(agent_pos, closest_food, walls, grid_size, heuristic_type='manhattan')
             else:
                 plan = self.bfs_search(agent_pos, closest_food, walls, grid_size)
 
             if plan is None:
-                return 'MoveForward'  # No path found
+                return 'MoveForward'
             self.plan = plan
 
         # Pop the next absolute action and execute it
@@ -177,3 +247,18 @@ class GreedyGridAgent:
 
     def sense_and_act(self, percept: dict) -> str:
         return random.choice(self.actions_pool)
+
+
+# ========== TESTING CHECKPOINT (Practical 04, Step 1.1) ==========
+if __name__ == "__main__":
+    # Test heuristic functions
+    agent = SearchAgent()
+    start = (0, 0)
+    goal = (3, 4)
+
+    manhattan = agent.manhattan_distance(start, goal)
+    euclidean = agent.euclidean_distance(start, goal)
+
+    print(f"Start: {start}, Goal: {goal}")
+    print(f"Manhattan Distance: {manhattan} (Expected: 7)")
+    print(f"Euclidean Distance: {euclidean} (Expected: 5.0)")

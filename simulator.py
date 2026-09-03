@@ -27,11 +27,11 @@ def run_model_based():
     print(f"Final Score: {env.score} after {env.steps} steps.\n")
 
 
-# ========== PRACTICAL 03: Search Agent Tests ==========
+# ========== PRACTICAL 03 + 04: Search Agent Tests ==========
 def run_search_agent(algo='BFS'):
     env = VisualGridHuntGame(width=8, height=8, num_food=5, num_opponents=0)
     agent = SearchAgent(algo=algo)
-    print(f"\n=== SEARCH AGENT ({algo}) - Practical 03 ===")
+    print(f"\n=== SEARCH AGENT ({algo}) - Practical 03/04 ===")
     while not env.is_done():
         percept = env.get_percept()
         action = agent.sense_and_act(percept)
@@ -42,12 +42,15 @@ def run_search_agent(algo='BFS'):
 
 if __name__ == "__main__":
     # Uncomment the one you want to test
-    
+
     # Practical 02 tests
     # run_simple_reflex()
     # run_model_based()
 
-    # Practical 03 tests
-    run_search_agent('BFS')   # Optimal, short path
+    # Practical 03 tests (Uninformed Search)
+    # run_search_agent('BFS')   # Optimal, short path
     # run_search_agent('DFS')   # Winding, long path
-    # run_search_agent('UCS')   # Optimal (same as BFS here, but uses priority queue)
+    # run_search_agent('UCS')   # Optimal (same as BFS here)
+
+    # ========== PRACTICAL 04: A* Test ==========
+    run_search_agent('AStar')   # Optimal with heuristic (should be efficient)
