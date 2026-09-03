@@ -1,19 +1,38 @@
 # simulator.py
-from grid_game import GridHuntGame
-from agent import GreedyGridAgent
+from visual_grid_game import VisualGridHuntGame
+from agent import SimpleReflexAgent, ModelBasedAgent
 
-def run_grid_hunt():
-    env = GridHuntGame()
-    agent = GreedyGridAgent()
 
-    print("=== UC Berkeley Style Small Grid Hunt Started ===")
+def run_simple_reflex():
+    """Run the environment with the Simple Reflex Agent."""
+    env = VisualGridHuntGame(width=8, height=8, num_food=5, num_opponents=0)
+    agent = SimpleReflexAgent()
+    
+    print("\n=== RUNNING SIMPLE REFLEX AGENT (Will get stuck) ===")
     while not env.is_done():
-        percept = env.get_percept(agent)
+        percept = env.get_percept()
         action = agent.sense_and_act(percept)
-        env.execute_action(agent, action)
-        print(f"Pos: {percept['agent_pos']} | Food Left: {percept['remaining_food']} | Score: {percept['score']}")
+        env.execute_action(action)
+        print(f"Percept: {percept} | Action: {action} | Score: {env.score}")
+    
+    print(f"Final Score: {env.score} after {env.steps} steps.\n")
 
-    print(f"\nGame Over! Final Score: {env.score} after {env.steps} steps.")
+
+def run_model_based():
+    """Run the environment with the Model-Based Agent."""
+    env = VisualGridHuntGame(width=8, height=8, num_food=5, num_opponents=0)
+    agent = ModelBasedAgent()
+    
+    print("\n=== RUNNING MODEL-BASED AGENT (Should escape loops) ===")
+    while not env.is_done():
+        percept = env.get_percept()
+        action = agent.sense_and_act(percept)
+        env.execute_action(action)
+        print(f"Percept: {percept} | Action: {action} | Score: {env.score}")
+    
+    print(f"Final Score: {env.score} after {env.steps} steps.\n")
+
 
 if __name__ == "__main__":
-    run_grid_hunt()
+    run_simple_reflex()
+    run_model_based()
