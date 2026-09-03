@@ -4,20 +4,20 @@ import tkinter as tk
 
 
 class VisualGridHuntGame:
-    """A flexible Pacman-style grid environment with configurable opponents, toxic traps, and PARTIAL OBSERVABILITY (Practical 02)."""
+    """Flexible Pacman-style grid environment with Practical 01, 02, and 03 features."""
 
     def __init__(self, width=10, height=10, num_food=10, num_opponents=2, custom_walls=None):
         self.width = width
         self.height = height
-        self.agent_pos = [0, 0]  # Starting position (x, y)
-        self.direction = 0       # 0=Up, 1=Right, 2=Down, 3=Left  (PRACTICAL 02)
+        self.agent_pos = [0, 0]
+        self.direction = 0       # 0=Up, 1=Right, 2=Down, 3=Left
 
         if custom_walls is not None:
             self.walls = set(custom_walls)
         else:
             self.walls = {(2, 2), (2, 3), (5, 5), (6, 5), (3, 7)}
 
-        # Dynamically generate random food positions
+        # Food generation
         self.food_positions = set()
         while len(self.food_positions) < num_food:
             fx = random.randint(0, self.width - 1)
@@ -26,7 +26,7 @@ class VisualGridHuntGame:
             if pos_tuple != (0, 0) and pos_tuple not in self.walls:
                 self.food_positions.add(pos_tuple)
 
-        # Generate adversarial opponents
+        # Opponents
         self.opponents = []
         while len(self.opponents) < num_opponents:
             ox = random.randint(0, self.width - 1)
@@ -53,10 +53,10 @@ class VisualGridHuntGame:
         self.steps = 0
         self.collision = False
 
-    # ========== PRACTICAL 02: get_percept returns ONLY local booleans ==========
+    # ========== PRACTICAL 02 + 03: get_percept ==========
     def get_percept(self) -> dict:
-        """Returns a PARTIALLY OBSERVABLE percept: only wall_ahead and food_here."""
-        # Calculate the cell directly in front of the agent based on self.direction
+        """Returns a PARTIALLY OBSERVABLE percept for reflex agents, plus FULL WORLD MODEL for SearchAgent."""
+        # Calculate the cell directly in front of the agent (for Practical 02)
         front = list(self.agent_pos)
         if self.direction == 0:      # Up
             front[1] = min(self.height - 1, front[1] + 1)
@@ -70,16 +70,24 @@ class VisualGridHuntGame:
         wall_ahead = tuple(front) in self.walls
         food_here = tuple(front) in self.food_positions
 
+        # ========== PRACTICAL 03: Expose the full world model ==========
         return {
+            # Practical 02 keys (partial observability)
             'wall_ahead': wall_ahead,
-            'food_here': food_here
+            'food_here': food_here,
+            # Practical 03 keys (full model for planning)
+            'grid_size': (self.width, self.height),
+            'walls': list(self.walls),
+            'all_food': list(self.food_positions),
+            'agent_pos': list(self.agent_pos),   # Added so SearchAgent knows its location
+            'direction': self.direction          # Added so SearchAgent knows its facing
         }
 
-    # ========== PRACTICAL 02: Action set now includes turning and moving forward ==========
+    # ========== PRACTICAL 02 + 03: execute_action ==========
     def execute_action(self, action: str):
         self.steps += 1
 
-        # Handle turning actions (no movement)
+        # --- Handle turning actions (Practical 02) ---
         if action == 'TurnLeft':
             self.direction = (self.direction - 1) % 4
             return
@@ -87,9 +95,18 @@ class VisualGridHuntGame:
             self.direction = (self.direction + 1) % 4
             return
 
-        # Handle moving forward
-        if action == 'MoveForward':
-            new_pos = list(self.agent_pos)
+        # --- Handle absolute movement actions (Practical 03) ---
+        new_pos = list(self.agent_pos)
+        if action == 'Up':
+            new_pos[1] = min(self.height - 1, new_pos[1] + 1)
+        elif action == 'Down':
+            new_pos[1] = max(0, new_pos[1] - 1)
+        elif action == 'Left':
+            new_pos[0] = max(0, new_pos[0] - 1)
+        elif action == 'Right':
+            new_pos[0] = min(self.width - 1, new_pos[0] + 1)
+        # --- Handle relative forward movement (Practical 02) ---
+        elif action == 'MoveForward':
             if self.direction == 0:      # Up
                 new_pos[1] = min(self.height - 1, new_pos[1] + 1)
             elif self.direction == 1:    # Right
@@ -99,24 +116,24 @@ class VisualGridHuntGame:
             elif self.direction == 3:    # Left
                 new_pos[0] = max(0, new_pos[0] - 1)
 
-            # Wall collision
-            if tuple(new_pos) in self.walls:
-                self.score -= 5
-                # Agent stays in place
-            else:
-                self.agent_pos = new_pos
+        # Check wall collision
+        if tuple(new_pos) in self.walls:
+            self.score -= 5
+            # Agent stays in place
+        else:
+            self.agent_pos = new_pos
 
-                # Eat food
-                tuple_pos = tuple(self.agent_pos)
-                if tuple_pos in self.food_positions:
-                    self.food_positions.remove(tuple_pos)
-                    self.score += 20
+            # Eat food
+            tuple_pos = tuple(self.agent_pos)
+            if tuple_pos in self.food_positions:
+                self.food_positions.remove(tuple_pos)
+                self.score += 20
 
-                # Toxic trap penalty (Practical 01) – still applies, but hidden from percept!
-                if tuple_pos in self.toxic_traps:
-                    self.score -= 15
+            # Toxic trap penalty (Practical 01)
+            if tuple_pos in self.toxic_traps:
+                self.score -= 15
 
-        # Opponent movement (random) – unchanged
+        # Opponent movement (random)
         for op in self.opponents:
             move = random.choice(['Up', 'Down', 'Left', 'Right', 'Stay'])
             if move == 'Up' and op[1] < self.height - 1:
@@ -136,7 +153,7 @@ class VisualGridHuntGame:
         return len(self.food_positions) == 0 or self.steps >= 60 or self.collision
 
 
-# ========== GUI (unchanged, but works with the new environment) ==========
+# ========== GUI (unchanged) ==========
 class GridGameGUI:
     def __init__(self, root, width=10, height=10, num_food=12, num_opponents=2, walls=None):
         self.root = root
@@ -196,7 +213,7 @@ class GridGameGUI:
             self.canvas.create_rectangle(x1, y1, x1 + self.cell_size * 0.6, y1 + self.cell_size * 0.6, fill="#990000",
                                          outline="#7a0000")
 
-        # Toxic traps (Practical 01) – purple diamonds
+        # Toxic traps
         for tx, ty in self.env.toxic_traps:
             offset = self.cell_size * 0.3
             x1 = tx * self.cell_size + offset
@@ -222,7 +239,6 @@ class GridGameGUI:
 
         def step():
             if not self.env.is_done():
-                # Random agent for demonstration (not the new agents)
                 action = random.choice(['TurnLeft', 'TurnRight', 'MoveForward'])
                 self.env.execute_action(action)
                 self.draw_grid()
